@@ -7,7 +7,7 @@ const getEnv = (key: string, defaultValue?: string): string => {
     return value;
 };
 
-export const MONGO_URL = getEnv("MONGO_URL");
+export const MONGO_URI = getEnv("MONGO_URI");
 export const NODE_ENV = getEnv("NODE_ENV", "development");
 export const PORT = getEnv("PORT", "4004");
 export const APP_ORIGIN = getEnv("APP_ORIGIN");

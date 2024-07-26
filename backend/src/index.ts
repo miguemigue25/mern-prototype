@@ -4,6 +4,9 @@ import express from 'express';
 import connectToDatabase from './config/db';
 import { APP_ORIGIN, NODE_ENV, PORT } from "./constants/env";
 import cookieParser from "cookie-parser";
+import errorHandler from "./middleware/errorHandler";
+import catchErrors from "./utils/catchErrors";
+import { OK } from "./constants/http";
 
 
 const app = express();
@@ -18,14 +21,15 @@ app.use(
 );
 app.use(cookieParser());
 
-app.get("/", (req, res) => {
-    return res.status(200).json({
+app.get("/", (req, res, next) => {
+    return res.status(OK).json({
         status: "healthy"
     });
 });
 
+app.use(errorHandler);
 
-app.listen(4004, async () => {
+app.listen(PORT, async () => {
     console.log(`Server is running on port ${PORT} in ${NODE_ENV} environment`);
     await connectToDatabase();
 }); 
