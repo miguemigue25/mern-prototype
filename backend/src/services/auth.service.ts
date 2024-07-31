@@ -27,37 +27,36 @@ export const createAccount = async (data: CreateAccountParams) => {
     const user = await UserModel.create({
         email: data.email,
         password: data.password,
-    })
+    });
+
+    const userId = user._id;
 
     // create verfication code
     const verficationCode = await VerificationCodeModel.create({
-        userId: user._id,
+        userId,
         type: VerificationCodeType.EmailVerification,
         expiresAt: oneYearFromNow(),
-    })
+    });
 
     // send verification email
 
 
     // create session
     const session = await SessionModel.create({
-        userId: user._id,
+        userId,
         userAgent: data.userAgent,
-    })
-
-    // sign access token & refresh token
-    const refreshToken = jwt.sign(
-        { sessionId: session._id },
-        JWT_REFRESH_SECRET, {
-        audience: ['user'],
-        expiresIn: "30d",
     });
 
-    const accessToken = signToken(
-        {
-            userId: user._id,
-            sessionId: session._id
-        });
+    // sign access token & refresh token
+    const refreshToken = signToken(
+        { sessionId: session._id },
+        refreshTokenSignOptions
+    );
+
+    const accessToken = signToken({
+        userId,
+        sessionId: session._id
+    });
 
     // return user & tokens
     return {
