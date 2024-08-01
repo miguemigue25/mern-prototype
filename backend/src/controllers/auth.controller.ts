@@ -1,12 +1,12 @@
 import { z } from "zod";
 import catchErrors from "../utils/catchErrors";
-import { createAccount, loginUser } from "../services/auth.service";
-import { CREATED, OK } from "../constants/http";
-import { clearAuthCookies, setAuthCookies } from "../utils/ccokies";
+import { createAccount, loginUser, refreshUserAccessToken } from "../services/auth.service";
+import { CREATED, OK, UNAUTHORIZED } from "../constants/http";
+import { clearAuthCookies, getAccessTokenCookieOptions, getRefreshTokenCookieOptions, setAuthCookies } from "../utils/ccokies";
 import { loginSchema, registerSchema } from "./auth.schemas";
 import { AccessTokenPayload, verifyToken } from "../utils/jwt";
 import SessionModel from "../models/session.models";
-
+import appAssert from "../utils/appAssert";
 
 
 
@@ -41,8 +41,8 @@ export const loginHandler = catchErrors(async (req, res) => {
 });
 
 export const logoutHandler = catchErrors(async (req, res) => {
-    const accessToken = req.cookies.accessToken;
-    const { payload } = verifyToken(accessToken);
+    const accessToken = req.cookies.accessToken as string | undefined;
+    const { payload } = verifyToken(accessToken || "");
 
     if (payload) {
         await SessionModel.findByIdAndDelete(payload.sessionId);
@@ -51,4 +51,24 @@ export const logoutHandler = catchErrors(async (req, res) => {
     return clearAuthCookies(res).status(OK).json({
         message: "Logout successful"
     });
+});
+
+export const refreshHandler = catchErrors(async (req, res) => {
+    const refreshToken = req.cookies.refreshToken as string | undefined;
+    appAssert(refreshToken, UNAUTHORIZED, "Missing refresh token");
+
+    const { accessToken, newRefreshToken } = await refreshUserAccessToken(
+        refreshToken
+    );
+
+    if (newRefreshToken) {
+        res.cookie("refreshToken", newRefreshToken, getRefreshTokenCookieOptions());
+    };
+
+    return res
+        .status(OK)
+        .cookie("accessToken", accessToken, getAccessTokenCookieOptions())
+        .json({
+            message: "Access token refreshed",
+        });
 });
