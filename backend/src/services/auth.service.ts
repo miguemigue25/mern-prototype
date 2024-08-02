@@ -1,15 +1,32 @@
-import { APP_ORIGIN, JWT_REFRESH_SECRET, JWT_SECRET } from "../constants/env";
-import { CONFLICT, INTERNAL_SERVER_ERROR, NOT_FOUND, UNAUTHORIZED } from "../constants/http";
+import { APP_ORIGIN } from "../constants/env";
+import { sendMail } from "../utils/sendMail";
+import { getVerifyEmailTemplate, getPasswordResetTemplate } from "../utils/emailTemplates";
 import VerificationCodeType from "../constants/verificationCodeType";
 import SessionModel from "../models/session.models";
 import UserModel from "../models/user.model";
 import VerificationCodeModel from "../models/verificationCode.model";
 import appAssert from "../utils/appAssert";
-import { ONE_DAY_MS, oneYearFromNow, thirtyDaysFromNow } from "../utils/date";
-import jwt from 'jsonwebtoken';
-import { RefreshTokenPayload, refreshTokenSignOptions, signToken, verifyToken } from "../utils/jwt";
-import { sendMail } from "../utils/sendMail";
-import { getVerifyEmailTemplate } from "../utils/emailTemplates";
+import {
+    CONFLICT,
+    INTERNAL_SERVER_ERROR,
+    NOT_FOUND,
+    TOO_MANY_REQUESTS,
+    UNAUTHORIZED
+} from "../constants/http";
+import {
+    ONE_DAY_MS,
+    fiveMinutesAgo,
+    oneHourFromNow,
+    oneYearFromNow,
+    thirtyDaysFromNow
+} from "../utils/date";
+import {
+    RefreshTokenPayload,
+    refreshTokenSignOptions,
+    signToken,
+    verifyToken
+} from "../utils/jwt";
+
 
 type CreateAccountParams = {
     email: string;
@@ -182,4 +199,45 @@ export const verifyEmail = async (code: string) => {
     return {
         user: updatedUser.omitPassword()
     };
-}
+};
+
+export const sendPasswordResetEmail = async (email: string) => {
+    // get the user by email
+    const user = await UserModel.findOne({ email });
+
+    appAssert(user, NOT_FOUND, "User not found");
+
+    // check email rate limit
+    const fiveMinAgo = fiveMinutesAgo();
+    const count = await VerificationCodeModel.countDocuments({
+        userId: user._id,
+        type: VerificationCodeType.PasswordReset,
+        createdAt: { $gt: fiveMinAgo },
+    });
+
+    appAssert(count <= 1, TOO_MANY_REQUESTS, "Too many requests, please try again later");
+
+    // create verification code
+    const expiresAt = oneHourFromNow();
+    const verificationCode = await VerificationCodeModel.create({
+        userId: user._id,
+        type: VerificationCodeType.PasswordReset,
+        expiresAt
+    });
+
+    // send verification email
+    const url = `${APP_ORIGIN}/password/reset?code=${verificationCode._id}&exp=${expiresAt.getTime()}`;
+
+    const { data, error } = await sendMail({
+        to: user.email,
+        ...getPasswordResetTemplate(url)
+    });
+
+    appAssert(data?.id, INTERNAL_SERVER_ERROR, `${error?.name} - ${error?.message}`);
+
+    // return success
+    return {
+        url,
+        emailId: data.id
+    };
+};
