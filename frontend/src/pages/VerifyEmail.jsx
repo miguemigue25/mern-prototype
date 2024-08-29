@@ -23,7 +23,7 @@ const VerifyEmail = () => {
                     </Alert>
                     {isError && <Text color='gray.400'>
                         The link is either invalid or expired.{" "}
-                        <ChakraLink as={Link} to="/register" replace>
+                        <ChakraLink as={Link} to="/password/reset" replace>
                             Get a new link
                         </ChakraLink>
                     </Text>
